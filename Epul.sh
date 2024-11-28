@@ -1,10 +1,24 @@
 #!/bin/bash
 
+# Menyembunyikan semua output yang mengganggu
+exec > /dev/null 2>&1
+
+# Fungsi untuk menampilkan pesan jika perintah berhasil
+function success_message {
+    echo "$1 berhasil!"
+}
+
+# Fungsi untuk menampilkan pesan jika perintah gagal
+function error_message {
+    echo "$1 gagal! Periksa log untuk detail kesalahan."
+    exit 1
+}
+
 # Otomasi Dimulai
 echo "Otomasi WaK Dimulai"
 
 # Menambahkan Repository Kartolo
-cat <<EOF | sudo tee /etc/apt/sources.list
+cat <<EOF | sudo tee /etc/apt/sources.list > /dev/null
 deb http://kartolo.sby.datautama.net.id/ubuntu/ focal main restricted universe multiverse
 deb http://kartolo.sby.datautama.net.id/ubuntu/ focal-updates main restricted universe multiverse
 deb http://kartolo.sby.datautama.net.id/ubuntu/ focal-security main restricted universe multiverse
@@ -13,10 +27,15 @@ deb http://kartolo.sby.datautama.net.id/ubuntu/ focal-proposed main restricted u
 EOF
 
 # Update Paket
-sudo apt update -y
+sudo apt update -y > /dev/null 2>&1
+if [ $? -eq 0 ]; then
+    success_message "Update paket"
+else
+    error_message "Update paket"
+fi
 
 # Konfigurasi Netplan
-cat <<EOT | sudo tee /etc/netplan/01-netcfg.yaml
+cat <<EOT | sudo tee /etc/netplan/01-netcfg.yaml > /dev/null
 network:
   version: 2
   renderer: networkd
@@ -33,14 +52,24 @@ network:
         - 192.168.20.1/24
 EOT
 
-# Terapkan Konfigurasi Jaringan
-sudo netplan apply
+# Terapkan Konfigurasi Netplan
+sudo netplan apply > /dev/null 2>&1
+if [ $? -eq 0 ]; then
+    success_message "Terapkan konfigurasi netplan"
+else
+    error_message "Terapkan konfigurasi netplan"
+fi
 
 # Instalasi ISC DHCP Server
-sudo apt install -y isc-dhcp-server
+sudo apt install -y isc-dhcp-server > /dev/null 2>&1
+if [ $? -eq 0 ]; then
+    success_message "Instalasi DHCP server"
+else
+    error_message "Instalasi DHCP server"
+fi
 
 # Konfigurasi DHCP
-sudo bash -c 'cat > /etc/dhcp/dhcpd.conf' << EOF
+sudo bash -c 'cat > /etc/dhcp/dhcpd.conf' << EOF > /dev/null
 # Konfigurasi Subnet DHCP
 subnet 192.168.20.0 netmask 255.255.255.0 {
   range 192.168.20.2 192.168.20.254;
@@ -54,22 +83,71 @@ subnet 192.168.20.0 netmask 255.255.255.0 {
 EOF
 
 # Konfigurasi ISC DHCP Server
-echo 'INTERFACESv4="eth1.10"' | sudo tee /etc/default/isc-dhcp-server
-sudo systemctl restart isc-dhcp-server
+echo 'INTERFACESv4="eth1.10"' | sudo tee /etc/default/isc-dhcp-server > /dev/null
+sudo systemctl restart isc-dhcp-server > /dev/null 2>&1
+if [ $? -eq 0 ]; then
+    success_message "Restart DHCP server"
+else
+    error_message "Restart DHCP server"
+fi
 
 # Aktifkan IP Forwarding
-sudo sed -i '/^#net.ipv4.ip_forward=1/s/^#//' /etc/sysctl.conf
-sudo sysctl -p
+sudo sed -i '/^#net.ipv4.ip_forward=1/s/^#//' /etc/sysctl.conf > /dev/null
+sudo sysctl -p > /dev/null 2>&1
+if [ $? -eq 0 ]; then
+    success_message "Aktifkan IP Forwarding"
+else
+    error_message "Aktifkan IP Forwarding"
+fi
 
 # Konfigurasi Masquerade dengan iptables
-sudo iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
-sudo apt install -y iptables-persistent
+sudo iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE > /dev/null 2>&1
+if [ $? -eq 0 ]; then
+    success_message "Konfigurasi Masquerade"
+else
+    error_message "Konfigurasi Masquerade"
+fi
+
+# Instalasi iptables-persistent
+sudo apt install -y iptables-persistent > /dev/null 2>&1
+if [ $? -eq 0 ]; then
+    success_message "Instalasi iptables-persistent"
+else
+    error_message "Instalasi iptables-persistent"
+fi
+
+# Menyimpan Konfigurasi iptables IPv4 dan IPv6
+sudo sh -c "iptables-save > /etc/iptables/rules.v4"
+sudo sh -c "ip6tables-save > /etc/iptables/rules.v6"
+if [ $? -eq 0 ]; then
+    success_message "Menyimpan konfigurasi iptables"
+else
+    error_message "Menyimpan konfigurasi iptables"
+fi
+
+# Restart iptables-persistent agar perubahan diterapkan
+sudo systemctl restart netfilter-persistent > /dev/null 2>&1
+if [ $? -eq 0 ]; then
+    success_message "Restart netfilter-persistent"
+else
+    error_message "Restart netfilter-persistent"
+fi
 
 # Instalasi Alat Tambahan
-sudo apt install -y sshpass python3 python3-pip build-essential libssl-dev libffi-dev python3-dev
+sudo apt install -y sshpass python3 python3-pip build-essential libssl-dev libffi-dev python3-dev > /dev/null 2>&1
+if [ $? -eq 0 ]; then
+    success_message "Instalasi alat tambahan"
+else
+    error_message "Instalasi alat tambahan"
+fi
 
 # Instalasi Netmiko melalui pip
-pip3 install netmiko
+pip3 install netmiko > /dev/null 2>&1
+if [ $? -eq 0 ]; then
+    success_message "Instalasi Netmiko"
+else
+    error_message "Instalasi Netmiko"
+fi
 
 # Selesai
 echo "Otomasi WaK Selesai"
