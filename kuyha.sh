@@ -35,6 +35,7 @@ expect "(config-if)#" { send "exit\r" }
 # Konfigurasi interface e0/0: mode trunk
 expect "(config)#" { send "interface e0/0\r" }
 expect "(config-if)#" { send "switchport mode trunk\r" }
+expect "(config-if)#" { send "switchport trunk encapsulation dot1q\r" }
 expect "(config-if)#" { send "no shutdown\r" }
 expect "(config-if)#" { send "exit\r" }
 
