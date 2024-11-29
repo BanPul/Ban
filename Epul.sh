@@ -1,26 +1,24 @@
 #!/bin/bash
 
-# Menyembunyikan semua output yang mengganggu
-exec > /dev/null 2>&1
+# Variabel progres
+PROGRES=("Menambahkan Repository Kartolo" "Melakukan update paket" "Mengonfigurasi netplan" "Menginstal DHCP server" \
+         "Mengonfigurasi DHCP server" "Mengaktifkan IP Forwarding" "Mengonfigurasi Masquerade" \
+         "Menginstal iptables-persistent" "Menyimpan konfigurasi iptables" "Menginstal Expect")
+STEP=0
 
-# Fungsi untuk menampilkan pesan jika perintah berhasil
-function success_message {
-    echo "$1 berhasil!"
-}
-
-# Fungsi untuk menampilkan pesan jika perintah gagal
-function error_message {
-    echo "$1 gagal! Periksa log untuk detail kesalahan."
-    exit 1
+# Fungsi untuk menampilkan progres
+function show_progress {
+    STEP=$((STEP + 1))
+    echo "Progres [$STEP/${#PROGRES[@]}]: ${PROGRES[STEP-1]}"
 }
 
 # Otomasi Dimulai
 echo "Otomasi Dimulai"
 
 # Menambahkan Repository Kartolo
+show_progress
 REPO="http://kartolo.sby.datautama.net.id/ubuntu/"
 if ! grep -q "$REPO" /etc/apt/sources.list; then
-    echo "Menambahkan repository Kartolo..."
     cat <<EOF | sudo tee /etc/apt/sources.list > /dev/null
 deb ${REPO} focal main restricted universe multiverse
 deb ${REPO} focal-updates main restricted universe multiverse
@@ -28,22 +26,14 @@ deb ${REPO} focal-security main restricted universe multiverse
 deb ${REPO} focal-backports main restricted universe multiverse
 deb ${REPO} focal-proposed main restricted universe multiverse
 EOF
-    success_message "Repository Kartolo ditambahkan"
-else
-    echo "Repository Kartolo sudah ada, melewatkan."
 fi
 
 # Update Paket
-echo "Melakukan update paket..."
+show_progress
 sudo apt update -y
-if [ $? -eq 0 ]; then
-    success_message "Update paket"
-else
-    error_message "Update paket"
-fi
 
 # Konfigurasi Netplan
-echo "Mengonfigurasi netplan..."
+show_progress
 cat <<EOT | sudo tee /etc/netplan/01-netcfg.yaml > /dev/null
 network:
   version: 2
@@ -60,25 +50,14 @@ network:
       addresses:
         - 192.168.20.1/24
 EOT
-
 sudo netplan apply
-if [ $? -eq 0 ]; then
-    success_message "Terapkan konfigurasi netplan"
-else
-    error_message "Terapkan konfigurasi netplan"
-fi
 
 # Instalasi ISC DHCP Server
-echo "Menginstal DHCP server..."
+show_progress
 sudo apt install -y isc-dhcp-server
-if [ $? -eq 0 ]; then
-    success_message "Instalasi DHCP server"
-else
-    error_message " Gagal Instalasi DHCP server"
-fi
 
-# Konfigurasi DHCP
-echo "Mengonfigurasi DHCP server..."
+# Konfigurasi DHCP Server
+show_progress
 sudo bash -c 'cat > /etc/dhcp/dhcpd.conf' << EOF
 subnet 192.168.20.0 netmask 255.255.255.0 {
   range 192.168.20.2 192.168.20.254;
@@ -90,61 +69,30 @@ subnet 192.168.20.0 netmask 255.255.255.0 {
   max-lease-time 7200;
 }
 EOF
-
 echo 'INTERFACESv4="eth1.10"' | sudo tee /etc/default/isc-dhcp-server > /dev/null
 sudo systemctl restart isc-dhcp-server
-if [ $? -eq 0 ]; then
-    success_message "Restart DHCP server"
-else
-    error_message "Gagal Restart DHCP server"
-fi
 
 # Aktifkan IP Forwarding
-echo "Mengaktifkan IP Forwarding..."
+show_progress
 sudo sed -i '/^#net.ipv4.ip_forward=1/s/^#//' /etc/sysctl.conf
 sudo sysctl -p
-if [ $? -eq 0 ]; then
-    success_message "Aktifkan IP Forwarding"
-else
-    error_message "Aktifkan IP Forwarding"
-fi
 
 # Konfigurasi Masquerade dengan iptables
-echo "Mengonfigurasi masquerade dengan iptables..."
+show_progress
 sudo iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
-if [ $? -eq 0 ]; then
-    success_message "Konfigurasi Masquerade"
-else
-    error_message "Konfigurasi Masquerade"
-fi
 
 # Instalasi iptables-persistent
-echo "Menginstal iptables-persistent..."
+show_progress
 sudo apt install -y iptables-persistent
-if [ $? -eq 0 ]; then
-    success_message "Instalasi iptables-persistent"
-else
-    error_message "Instalasi iptables-persistent"
-fi
 
 # Menyimpan Konfigurasi iptables
-echo "Menyimpan konfigurasi iptables..."
+show_progress
 sudo sh -c "iptables-save > /etc/iptables/rules.v4"
 sudo sh -c "ip6tables-save > /etc/iptables/rules.v6"
-if [ $? -eq 0 ]; then
-    success_message "Menyimpan konfigurasi iptables"
-else
-    error_message "Menyimpan konfigurasi iptables"
-fi
 
-# Restart iptables-persistent
-echo "Restarting iptables-persistent..."
-sudo systemctl restart netfilter-persistent
-if [ $? -eq 0 ]; then
-    success_message "Restart netfilter-persistent"
-else
-    error_message "Restart netfilter-persistent"
-fi
+# Instalasi Expect
+show_progress
+sudo apt install -y expect
 
-#instalasi expect
-sudo apt install expect
+# Selesai
+echo "Otomasi selesai!"

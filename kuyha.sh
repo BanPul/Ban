@@ -3,98 +3,46 @@
 # Warna untuk output
 GREEN='\033[0;32m'
 RED='\033[0;31m'
-NC='\033[0m' # Reset warna
+NC='\033[0m'
 
-# Fungsi untuk menampilkan pesan sukses
-function success_message {
-    echo -e "${GREEN}$1 berhasil!${NC}"
-}
+# Fungsi untuk pesan sukses dan gagal
+success_message() { echo -e "${GREEN}$1 berhasil!${NC}"; }
+error_message() { echo -e "${RED}$1 gagal!${NC}"; exit 1; }
 
-# Fungsi untuk menampilkan pesan gagal
-function error_message {
-    echo -e "${RED}$1 gagal!${NC}"
-    exit 1
-}
-
-# Menentukan IP dan Port
+# IP dan Port Cisco Device
 CISCO_IP="192.168.234.132"
 CISCO_PORT="30013"
 
-# Mengecek apakah `expect` terinstal
-if ! command -v expect &> /dev/null; then
-    error_message "Expect tidak terpasang. Instal dengan: sudo apt install expect"
-fi
+# Pastikan `expect` terinstal
+command -v expect > /dev/null || error_message "Expect tidak terpasang. Instal dengan: sudo apt install expect"
 
-# Menghubungkan ke Cisco Device melalui Telnet menggunakan expect
-echo "Menghubungkan ke Cisco Device melalui Telnet..."
-
+# Telnet dan konfigurasi perangkat Cisco
 expect <<EOF
-# Mengatur timeout untuk seluruh operasi expect
+spawn telnet $CISCO_IP $CISCO_PORT
 set timeout 20
 
-# Memulai koneksi Telnet
-spawn telnet $CISCO_IP $CISCO_PORT
+# Masuk ke perangkat dan mode konfigurasi
+expect ">" { send "enable\r" }
+expect "#" { send "configure terminal\r" }
 
-# Menunggu prompt ">"
-expect ">" {
-    send "enable\r"
-} timeout {
-    puts "Gagal terhubung ke perangkat. Periksa IP dan Port."
-    exit 1
-}
+# Konfigurasi interface e0/1: mode access dan VLAN 10
+expect "(config)#" { send "interface e0/1\r" }
+expect "(config-if)#" { send "switchport mode access\r" }
+expect "(config-if)#" { send "switchport access vlan 10\r" }
+expect "(config-if)#" { send "no shutdown\r" }
+expect "(config-if)#" { send "exit\r" }
 
-# Masuk ke mode enable, tunggu prompt "#"
-expect "#" {
-    send "configure terminal\r"
-} timeout {
-    puts "Gagal masuk ke mode enable. Periksa kredensial atau otorisasi."
-    exit 1
-}
+# Konfigurasi interface e0/0: mode trunk
+expect "(config)#" { send "interface e0/0\r" }
+expect "(config-if)#" { send "switchport mode trunk\r" }
+expect "(config-if)#" { send "no shutdown\r" }
+expect "(config-if)#" { send "exit\r" }
 
-# Masuk ke mode konfigurasi, tunggu prompt "(config)#"
-expect "(config)#" {
-    send "interface eth0\r"
-} timeout {
-    puts "Gagal masuk ke mode konfigurasi interface. Periksa koneksi."
-    exit 1
-}
-
-# Mengaktifkan interface eth0, tunggu prompt "(config-if)#"
-expect "(config-if)#" {
-    send "no shutdown\r"
-} timeout {
-    puts "Gagal mengaktifkan interface. Periksa konfigurasi."
-    exit 1
-}
-
-# Keluar dari konfigurasi interface
-expect "(config-if)#" {
-    send "exit\r"
-} timeout {
-    puts "Gagal keluar dari konfigurasi interface."
-    exit 1
-}
-
-# Keluar dari konfigurasi terminal
-expect "(config)#" {
-    send "exit\r"
-} timeout {
-    puts "Gagal keluar dari mode konfigurasi terminal."
-    exit 1
-}
-
-# Keluar dari sesi Telnet
-expect "#" {
-    send "exit\r"
-}
-
-# Menutup koneksi setelah selesai
+# Keluar dari mode konfigurasi
+expect "(config)#" { send "exit\r" }
+expect "#" { send "exit\r" }
 expect eof
 EOF
 
-# Periksa status eksekusi expect
-if [ $? -eq 0 ]; then
-    success_message "Konfigurasi Cisco berhasil diterapkan"
-else
-    error_message "Proses konfigurasi Cisco gagal"
-fi
+# Cek status dan tampilkan pesan
+[ $? -eq 0 ] && success_message "Konfigurasi Cisco" || error_message "Proses konfigurasi Cisco"
