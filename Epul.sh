@@ -15,19 +15,27 @@ function error_message {
 }
 
 # Otomasi Dimulai
-echo "Otomasi WaK Dimulai"
+echo "Otomasi Dimulai"
 
 # Menambahkan Repository Kartolo
-cat <<EOF | sudo tee /etc/apt/sources.list > /dev/null
-deb http://kartolo.sby.datautama.net.id/ubuntu/ focal main restricted universe multiverse
-deb http://kartolo.sby.datautama.net.id/ubuntu/ focal-updates main restricted universe multiverse
-deb http://kartolo.sby.datautama.net.id/ubuntu/ focal-security main restricted universe multiverse
-deb http://kartolo.sby.datautama.net.id/ubuntu/ focal-backports main restricted universe multiverse
-deb http://kartolo.sby.datautama.net.id/ubuntu/ focal-proposed main restricted universe multiverse
+REPO="http://kartolo.sby.datautama.net.id/ubuntu/"
+if ! grep -q "$REPO" /etc/apt/sources.list; then
+    echo "Menambahkan repository Kartolo..."
+    cat <<EOF | sudo tee /etc/apt/sources.list > /dev/null
+deb ${REPO} focal main restricted universe multiverse
+deb ${REPO} focal-updates main restricted universe multiverse
+deb ${REPO} focal-security main restricted universe multiverse
+deb ${REPO} focal-backports main restricted universe multiverse
+deb ${REPO} focal-proposed main restricted universe multiverse
 EOF
+    success_message "Repository Kartolo ditambahkan"
+else
+    echo "Repository Kartolo sudah ada, melewatkan."
+fi
 
 # Update Paket
-sudo apt update -y > /dev/null 2>&1
+echo "Melakukan update paket..."
+sudo apt update -y
 if [ $? -eq 0 ]; then
     success_message "Update paket"
 else
@@ -35,6 +43,7 @@ else
 fi
 
 # Konfigurasi Netplan
+echo "Mengonfigurasi netplan..."
 cat <<EOT | sudo tee /etc/netplan/01-netcfg.yaml > /dev/null
 network:
   version: 2
@@ -52,8 +61,7 @@ network:
         - 192.168.20.1/24
 EOT
 
-# Terapkan Konfigurasi Netplan
-sudo netplan apply > /dev/null 2>&1
+sudo netplan apply
 if [ $? -eq 0 ]; then
     success_message "Terapkan konfigurasi netplan"
 else
@@ -61,16 +69,17 @@ else
 fi
 
 # Instalasi ISC DHCP Server
-sudo apt install -y isc-dhcp-server > /dev/null 2>&1
+echo "Menginstal DHCP server..."
+sudo apt install -y isc-dhcp-server
 if [ $? -eq 0 ]; then
     success_message "Instalasi DHCP server"
 else
-    error_message "Instalasi DHCP server"
+    error_message " Gagal Instalasi DHCP server"
 fi
 
 # Konfigurasi DHCP
-sudo bash -c 'cat > /etc/dhcp/dhcpd.conf' << EOF > /dev/null
-# Konfigurasi Subnet DHCP
+echo "Mengonfigurasi DHCP server..."
+sudo bash -c 'cat > /etc/dhcp/dhcpd.conf' << EOF
 subnet 192.168.20.0 netmask 255.255.255.0 {
   range 192.168.20.2 192.168.20.254;
   option domain-name-servers 8.8.8.8;
@@ -82,18 +91,18 @@ subnet 192.168.20.0 netmask 255.255.255.0 {
 }
 EOF
 
-# Konfigurasi ISC DHCP Server
 echo 'INTERFACESv4="eth1.10"' | sudo tee /etc/default/isc-dhcp-server > /dev/null
-sudo systemctl restart isc-dhcp-server > /dev/null 2>&1
+sudo systemctl restart isc-dhcp-server
 if [ $? -eq 0 ]; then
     success_message "Restart DHCP server"
 else
-    error_message "Restart DHCP server"
+    error_message "Gagal Restart DHCP server"
 fi
 
 # Aktifkan IP Forwarding
-sudo sed -i '/^#net.ipv4.ip_forward=1/s/^#//' /etc/sysctl.conf > /dev/null
-sudo sysctl -p > /dev/null 2>&1
+echo "Mengaktifkan IP Forwarding..."
+sudo sed -i '/^#net.ipv4.ip_forward=1/s/^#//' /etc/sysctl.conf
+sudo sysctl -p
 if [ $? -eq 0 ]; then
     success_message "Aktifkan IP Forwarding"
 else
@@ -101,7 +110,8 @@ else
 fi
 
 # Konfigurasi Masquerade dengan iptables
-sudo iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE > /dev/null 2>&1
+echo "Mengonfigurasi masquerade dengan iptables..."
+sudo iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
 if [ $? -eq 0 ]; then
     success_message "Konfigurasi Masquerade"
 else
@@ -109,14 +119,16 @@ else
 fi
 
 # Instalasi iptables-persistent
-sudo apt install -y iptables-persistent > /dev/null 2>&1
+echo "Menginstal iptables-persistent..."
+sudo apt install -y iptables-persistent
 if [ $? -eq 0 ]; then
     success_message "Instalasi iptables-persistent"
 else
     error_message "Instalasi iptables-persistent"
 fi
 
-# Menyimpan Konfigurasi iptables IPv4 dan IPv6
+# Menyimpan Konfigurasi iptables
+echo "Menyimpan konfigurasi iptables..."
 sudo sh -c "iptables-save > /etc/iptables/rules.v4"
 sudo sh -c "ip6tables-save > /etc/iptables/rules.v6"
 if [ $? -eq 0 ]; then
@@ -125,24 +137,19 @@ else
     error_message "Menyimpan konfigurasi iptables"
 fi
 
-# Restart iptables-persistent agar perubahan diterapkan
-sudo systemctl restart netfilter-persistent > /dev/null 2>&1
+# Restart iptables-persistent
+echo "Restarting iptables-persistent..."
+sudo systemctl restart netfilter-persistent
 if [ $? -eq 0 ]; then
     success_message "Restart netfilter-persistent"
 else
     error_message "Restart netfilter-persistent"
 fi
 
-# Instalasi Alat Tambahan
-sudo apt install -y sshpass python3 python3-pip build-essential libssl-dev libffi-dev python3-dev > /dev/null 2>&1
-if [ $? -eq 0 ]; then
-    success_message "Instalasi alat tambahan"
-else
-    error_message "Instalasi alat tambahan"
-fi
-
-# Instalasi Netmiko melalui pip
-pip3 install netmiko > /dev/null 2>&1
+# Instalasi Netmiko
+echo "Menginstal Netmiko..."
+sudo apt install -y python3 python3-pip
+pip3 install netmiko
 if [ $? -eq 0 ]; then
     success_message "Instalasi Netmiko"
 else
@@ -150,4 +157,4 @@ else
 fi
 
 # Selesai
-echo "Otomasi WaK Selesai"
+echo "Otomasi Selesai"
