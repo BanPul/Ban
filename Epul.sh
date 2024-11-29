@@ -146,15 +146,5 @@ else
     error_message "Restart netfilter-persistent"
 fi
 
-# Instalasi Netmiko
-echo "Menginstal Netmiko..."
-sudo apt install -y python3 python3-pip
-pip3 install netmiko
-if [ $? -eq 0 ]; then
-    success_message "Instalasi Netmiko"
-else
-    error_message "Instalasi Netmiko"
-fi
-
-# Selesai
-echo "Otomasi Selesai"
+#instalasi expect
+sudo apt install expect
