@@ -1,30 +1,77 @@
 #!/bin/bash
 
-# Cek apakah expect terpasang
+# Warna Hijau untuk pemberitahuan
+GREEN='\033[0;32m'
+NC='\033[0m' # Reset warna
+
+# Fungsi untuk menampilkan pesan jika perintah berhasil
+function success_message {
+    echo -e "${GREEN}$1 berhasil!${NC}"
+}
+
+# Fungsi untuk menampilkan pesan jika perintah gagal
+function error_message {
+    echo "$1 gagal! Periksa log untuk detail kesalahan."
+    exit 1
+}
+
+# Menentukan IP dan Port
+CISCO_IP="192.168.234.132"
+CISCO_PORT="30013"
+
+# Mengecek apakah `expect` terinstal
 if ! command -v expect &> /dev/null; then
     echo "Expect tidak terpasang. Instal dengan: sudo apt install expect"
     exit 1
 fi
 
-# Variabel koneksi
-HOST="192.168.234.132"  # IP perangkat Cisco
-PORT="30013"            # Port Telnet
+# Koneksi menggunakan Telnet dengan `expect`
+echo "Menghubungkan ke Cisco Device melalui Telnet..."
 
-# Fungsi konfigurasi Cisco via Telnet
-expect -c "
-spawn telnet $HOST $PORT
-expect \">\" { send \"enable\r\" }
-expect \"#\" { send \"configure terminal\r\" }
-expect \"(config)#\" { send \"vlan 10\r\" }
-expect \"(config-vlan)#\" { send \"name VLAN10\r\" }
-expect \"(config-vlan)#\" { send \"exit\r\" }
-expect \"(config)#\" { send \"interface ethernet0/1\r\" }
-expect \"(config-if)#\" { send \"switchport mode access\r\" }
-expect \"(config-if)#\" { send \"switchport access vlan 10\r\" }
-expect \"(config-if)#\" { send \"exit\r\" }
-expect \"(config)#\" { send \"write memory\r\" }
-expect \"#\" { send \"exit\r\" }
-expect eof
-"
+expect <<EOF
+set timeout 20
+spawn telnet $CISCO_IP $CISCO_PORT
 
-echo "Konfigurasi selesai!"
+# Tunggu sampai prompt muncul
+expect ">" {
+    send "enable\r"
+}
+
+# Tunggu prompt enable
+expect "#" {
+    send "configure terminal\r"
+}
+
+# Tunggu prompt konfigurasi terminal
+expect "(config)#" {
+    send "interface eth0\r"
+}
+
+# Mengubah konfigurasi (contoh: mengaktifkan interface)
+expect "(config-if)#" {
+    send "no shutdown\r"
+}
+
+# Tunggu prompt konfigurasi interface
+expect "(config-if)#" {
+    send "exit\r"
+}
+
+# Keluar dari konfigurasi
+expect "(config)#" {
+    send "exit\r"
+}
+
+# Keluar dari session
+expect "#" {
+    send "exit\r"
+}
+
+EOF
+
+# Jika koneksi berhasil, tampilkan pesan sukses
+if [ $? -eq 0 ]; then
+    success_message "Konfigurasi Cisco berhasil diterapkan"
+else
+    error_message "Koneksi ke Cisco gagal"
+fi
